@@ -179,7 +179,30 @@ nav.tabbar button.on{color:var(--green-d)}
     </div>
 
     <div class="card" id="menu-card">
-      <h2>今日のメニュー <span class="small" id="menu-meta"></span></h2>
+      <h2>今日のメニュー <span class="small" id="home-menu-meta"></span></h2>
+      <ul class="menu-list" id="home-menu-list"></ul>
+      <button class="btn" id="btn-start">▶ はじめる</button>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
+        <button class="link-btn" id="btn-minimum">忙しい日用：1分だけやる（種目を選ぶ）</button>
+        <button class="link-btn" id="btn-to-menu">メニューを編集する →</button>
+      </div>
+      <div class="picker" id="picker-min" hidden></div>
+      <p class="small">メニューの組み直しは、下のタブ「メニュー」から行えます。途中でやめても、やった分は記録に残ります。1分だけでも色がついて、キャラクターも反応します。</p>
+    </div>
+
+    <div class="card">
+      <h2>最近の活動</h2>
+      <div class="hm-scroll"><div class="hm-box" id="hm-home"></div></div>
+      <div class="hm-legend">少ない <i></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i> 多い</div>
+    </div>
+  </section>
+
+  <!-- ===== メニュー ===== -->
+  <section class="view" id="view-menu">
+    <h1>メニューを組む</h1>
+    <div class="date-line">運動と休憩をカードとして並べて、自分のメニューを作れます。ここで組んだメニューがそのままホームの「今日のメニュー」になり、実行されます。</div>
+    <div class="card">
+      <h2>現在のメニュー <span class="small" id="menu-meta"></span></h2>
       <p class="small" style="margin-top:0">カードの並び順どおりに実行されます。量の調整（＋／−）、追加・削除・並べ替え（↑／↓）ができます。編集内容はこのブラウザに保存されます。</p>
       <div id="menu-cards"></div>
       <div class="add-row">
@@ -187,19 +210,8 @@ nav.tabbar button.on{color:var(--green-d)}
         <button class="btn ghost small-btn" id="btn-add-rest">＋ 休憩を追加</button>
       </div>
       <div class="picker" id="picker-add" hidden></div>
-      <button class="btn" id="btn-start">▶ はじめる</button>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
-        <button class="link-btn" id="btn-minimum">忙しい日用：1分だけやる（種目を選ぶ）</button>
-        <button class="link-btn" id="btn-regen">自動メニューに戻す</button>
-      </div>
-      <div class="picker" id="picker-min" hidden></div>
-      <p class="small">途中でやめても、やった分は記録に残ります。1分だけでも色がついて、キャラクターも反応します。</p>
-    </div>
-
-    <div class="card">
-      <h2>最近の活動</h2>
-      <div class="hm-scroll"><div class="hm-box" id="hm-home"></div></div>
-      <div class="hm-legend">少ない <i></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i> 多い</div>
+      <button class="link-btn" id="btn-regen">メニューを組み直す（自動生成に戻す）</button>
+      <p class="small">組み直すと、今の並びは自動生成のメニューに置き換わります。</p>
     </div>
   </section>
 
@@ -308,6 +320,7 @@ nav.tabbar button.on{color:var(--green-d)}
 
 <nav class="tabbar" role="navigation" aria-label="画面切り替え">
   <button data-view="home" class="on"><span class="ic">🏠</span>ホーム</button>
+  <button data-view="menu"><span class="ic">📋</span>メニュー</button>
   <button data-view="cal"><span class="ic">🗓️</span>カレンダー</button>
   <button data-view="stats"><span class="ic">📊</span>記録</button>
   <button data-view="settings"><span class="ic">⚙️</span>設定</button>
@@ -552,7 +565,28 @@ function renderMenu(){
   });
   var exCount = 0;
   currentMenu.forEach(function(c){ if(c.type==="ex") exCount++; });
-  document.getElementById("menu-meta").textContent = "合計 約"+Math.max(1, Math.round(menuEstSec()/60))+"分・運動"+exCount+"枚";
+  var meta = "合計 約"+Math.max(1, Math.round(menuEstSec()/60))+"分・運動"+exCount+"枚";
+  document.getElementById("menu-meta").textContent = meta;
+  /* ホーム側は編集なしの内容表示のみ（同じ currentMenu を描く） */
+  var homeMeta = document.getElementById("home-menu-meta");
+  if(homeMeta) homeMeta.textContent = meta;
+  var homeList = document.getElementById("home-menu-list");
+  if(homeList){
+    homeList.innerHTML = "";
+    if(!currentMenu.length){
+      homeList.innerHTML = "<li><span class='small'>メニューがまだ組まれていません。「メニュー」タブからカードを追加してください。</span></li>";
+    }
+    currentMenu.forEach(function(c){
+      var li = document.createElement("li");
+      if(c.type==="rest"){
+        li.innerHTML = "<span>休憩</span><span class='amt'>"+c.sec+"秒</span>";
+      } else {
+        var ex = exById(c.id);
+        li.innerHTML = "<span>"+ex.name+" <span class='small'>（"+ex.part+"）</span></span><span class='amt'>"+amountLabel(c.amount)+"</span>";
+      }
+      homeList.appendChild(li);
+    });
+  }
 }
 function buildPickers(){
   var addBox = document.getElementById("picker-add");
@@ -845,10 +879,11 @@ function completeWorkout(partial){
 
 /* ============ 画面切り替え ============ */
 function showView(name){
-  var views = { home:"view-home", workout:"view-workout", cal:"view-cal", stats:"view-stats", settings:"view-settings" };
+  var views = { home:"view-home", menu:"view-menu", workout:"view-workout", cal:"view-cal", stats:"view-stats", settings:"view-settings" };
   for(var key in views) document.getElementById(views[key]).classList.toggle("on", key===name);
   var btns = document.querySelectorAll("nav.tabbar button");
   btns.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-view")===name); });
+  if(name==="menu") renderMenu();
   if(name==="cal") renderCal();
   if(name==="stats") renderStats();
   var wrapEl = document.querySelector(".wrap");
@@ -871,6 +906,7 @@ function toast(msg){
 
 /* ============ イベント ============ */
 document.getElementById("btn-start").addEventListener("click", function(){ startWorkout(currentMenu, false); });
+document.getElementById("btn-to-menu").addEventListener("click", function(){ showView("menu"); });
 document.getElementById("btn-regen").addEventListener("click", function(){ regenSeed++; buildAutoMenu(); renderMenu(); toast("自動メニューに戻しました"); });
 document.getElementById("btn-minimum").addEventListener("click", function(){
   var p = document.getElementById("picker-min"); p.hidden = !p.hidden;
