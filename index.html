@@ -121,11 +121,11 @@ h1{font-size:1.35rem;margin:4px 0 2px;letter-spacing:.02em}
 .stat-box{background:var(--card2);border-radius:10px;padding:12px;text-align:center}
 .stat-box b{display:block;font-size:1.5rem}
 .stat-box span{font-size:.78rem;color:var(--sub)}
-.bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:10px}
-.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.bars{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:10px}
+.bar-col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
 .bar{width:100%;max-width:44px;background:var(--green);border-radius:6px 6px 3px 3px;min-height:3px}
-.bar-col span{font-size:.7rem;color:var(--sub)}
-.bar-col b{font-size:.78rem}
+.bar-col span{font-size:.68rem;color:var(--sub);white-space:nowrap}
+.bar-col b{font-size:.78rem;white-space:nowrap}
 /* settings */
 .set-row{margin-bottom:18px}
 .set-row label{display:block;font-weight:700;font-size:.92rem;margin-bottom:8px}
@@ -180,6 +180,7 @@ nav.tabbar button.on{color:var(--green-d)}
 
     <div class="card" id="menu-card">
       <h2>今日のメニュー <span class="small" id="home-menu-meta"></span></h2>
+      <div class="chips" id="pattern-chips-home" style="margin-bottom:10px"></div>
       <ul class="menu-list" id="home-menu-list"></ul>
       <button class="btn" id="btn-start">▶ はじめる</button>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
@@ -200,9 +201,14 @@ nav.tabbar button.on{color:var(--green-d)}
   <!-- ===== メニュー ===== -->
   <section class="view" id="view-menu">
     <h1>メニューを組む</h1>
-    <div class="date-line">運動と休憩をカードとして並べて、自分のメニューを作れます。ここで組んだメニューがそのままホームの「今日のメニュー」になり、実行されます。</div>
+    <div class="date-line">運動と休憩をカードとして並べて、自分のメニューを作れます。メニューは3パターンまで登録でき、使用中のパターンがホームに表示され、実行されます。</div>
     <div class="card">
-      <h2>現在のメニュー <span class="small" id="menu-meta"></span></h2>
+      <h2>メニューのパターン</h2>
+      <div class="chips" id="pattern-chips-menu"></div>
+      <p class="small" style="margin-bottom:0">タップしたパターンが「使用中」になります。各パターンは独立したカード列を持ち、編集は下のカードで行います。</p>
+    </div>
+    <div class="card">
+      <h2><span id="menu-edit-title">パターン1</span> の内容 <span class="small" id="menu-meta"></span></h2>
       <p class="small" style="margin-top:0">カードの並び順どおりに実行されます。量の調整（＋／−）、追加・削除・並べ替え（↑／↓）ができます。編集内容はこのブラウザに保存されます。</p>
       <div id="menu-cards"></div>
       <div class="add-row">
@@ -305,15 +311,9 @@ nav.tabbar button.on{color:var(--green-d)}
     </div>
 
     <div class="card">
-      <h2>GitHubに置くとき</h2>
-      <p class="sub">このアプリは <code>index.html</code> 1ファイルだけで動きます。下のボタンでこのファイル自体を保存して、リポジトリに置けばそのまま使えます。GitHub Pagesを有効にすれば、URLで開けるページにもなります。</p>
+      <h2>アプリのファイル</h2>
+      <p class="sub">このアプリは <code>index.html</code> 1ファイルだけで動きます。下のボタンで、このファイル自体を保存できます。</p>
       <button class="btn ghost small-btn" id="btn-download-html">index.html をダウンロード</button>
-      <h3>手順の目安</h3>
-      <pre>1. GitHubで新しいリポジトリを作る（Public）
-2. index.html をアップロードして Commit
-3. Settings → Pages → Branch: main / (root) を選んで Save
-4. 数分後に表示されるURLを開く</pre>
-      <p class="small">※ GitHub Pagesで開いた場合も、記録は「開いているブラウザ」に保存されます。別のブラウザで開くと記録は別になります。</p>
     </div>
   </section>
 </div>
@@ -525,10 +525,57 @@ function buildAutoMenu(){
   currentMenu = cardsFromGenerated(generateMenu(settings().duration, settings().level, regenSeed));
   saveMenu();
 }
-function saveMenu(){ store.menu = currentMenu; saveStore(); }
-function loadMenu(){
-  if(store.menu && store.menu.length) currentMenu = store.menu;
-  else buildAutoMenu();
+/* ============ メニューのパターン（最大3つ） ============ */
+var PATTERN_COUNT = 3;
+function genPatternCards(seedExtra){
+  return cardsFromGenerated(generateMenu(settings().duration, settings().level, seedExtra));
+}
+function activePattern(){
+  var a = store.activeMenu;
+  return (typeof a==="number" && a>=0 && a<PATTERN_COUNT) ? Math.floor(a) : 0;
+}
+function ensureMenus(){
+  var ok = store.menus && store.menus.length===PATTERN_COUNT;
+  if(ok){ for(var i=0;i<PATTERN_COUNT;i++){ if(!Array.isArray(store.menus[i])){ ok=false; break; } } }
+  if(!ok){
+    /* 既存の単一メニュー（store.menu）はパターン1へ移行して残す。パターン2・3は現在の設定から自動生成 */
+    var p1 = (store.menu && store.menu.length) ? store.menu : genPatternCards(0);
+    store.menus = [p1, genPatternCards(11), genPatternCards(23)];
+  }
+  store.activeMenu = activePattern();
+  currentMenu = store.menus[store.activeMenu];
+  store.menu = currentMenu;
+}
+function saveMenu(){
+  if(store.menus && store.menus.length===PATTERN_COUNT) store.menus[activePattern()] = currentMenu;
+  store.menu = currentMenu; /* 使用中パターンと同期（旧形式で読む場合の保険） */
+  saveStore();
+}
+function loadMenu(){ ensureMenus(); saveStore(); }
+function setActivePattern(i){
+  if(!store.menus) ensureMenus();
+  if(i===activePattern()){ renderMenu(); return; }
+  store.activeMenu = i;
+  currentMenu = store.menus[i];
+  store.menu = currentMenu;
+  saveStore();
+  renderMenu();
+  toast("パターン"+(i+1)+" を使用中にしました");
+}
+function renderPatternChips(){
+  ["pattern-chips-menu","pattern-chips-home"].forEach(function(id){
+    var box = document.getElementById(id); if(!box) return;
+    box.innerHTML = "";
+    for(var i=0;i<PATTERN_COUNT;i++){
+      (function(idx){
+        var b = document.createElement("button");
+        b.className = "chip" + (idx===activePattern() ? " on" : "");
+        b.textContent = "パターン"+(idx+1) + (idx===activePattern() ? "（使用中）" : "");
+        b.addEventListener("click", function(){ setActivePattern(idx); });
+        box.appendChild(b);
+      })(i);
+    }
+  });
 }
 function menuEstSec(){
   var t = 0;
@@ -567,6 +614,10 @@ function renderMenu(){
   currentMenu.forEach(function(c){ if(c.type==="ex") exCount++; });
   var meta = "合計 約"+Math.max(1, Math.round(menuEstSec()/60))+"分・運動"+exCount+"枚";
   document.getElementById("menu-meta").textContent = meta;
+  var titleEl = document.getElementById("menu-edit-title");
+  if(titleEl) titleEl.textContent = "パターン"+(activePattern()+1);
+  renderPatternChips();
+  renderMinPicker();
   /* ホーム側は編集なしの内容表示のみ（同じ currentMenu を描く） */
   var homeMeta = document.getElementById("home-menu-meta");
   if(homeMeta) homeMeta.textContent = meta;
@@ -590,7 +641,6 @@ function renderMenu(){
 }
 function buildPickers(){
   var addBox = document.getElementById("picker-add");
-  var minBox = document.getElementById("picker-min");
   EXERCISES.forEach(function(ex){
     var b = document.createElement("button");
     b.className = "chip"; b.textContent = ex.name;
@@ -601,13 +651,30 @@ function buildPickers(){
       toast(ex.name+" を追加しました");
     });
     addBox.appendChild(b);
-    var b2 = document.createElement("button");
-    b2.className = "chip"; b2.textContent = ex.name;
-    b2.addEventListener("click", function(){
+  });
+}
+/* 「1分だけ」の種目候補は、使用中パターンに入っている運動カードから出す */
+function renderMinPicker(){
+  var minBox = document.getElementById("picker-min");
+  if(!minBox) return;
+  minBox.innerHTML = "";
+  var seen = {}, ids = [];
+  currentMenu.forEach(function(c){
+    if(c.type==="ex" && !seen[c.id]){ seen[c.id]=true; ids.push(c.id); }
+  });
+  if(!ids.length){
+    minBox.innerHTML = "<span class='small'>使用中のパターンに運動カードがありません。「メニュー」タブで追加してください。</span>";
+    return;
+  }
+  ids.forEach(function(id){
+    var ex = exById(id);
+    var b = document.createElement("button");
+    b.className = "chip"; b.textContent = ex.name;
+    b.addEventListener("click", function(){
       minBox.hidden = true;
       startWorkout([{ type:"ex", id:ex.id, amount:{ kind:"sec", value:60 } }], true);
     });
-    minBox.appendChild(b2);
+    minBox.appendChild(b);
   });
 }
 
@@ -728,7 +795,7 @@ function renderStats(){
   var max = Math.max.apply(null, weeks.map(function(x){return x.min;}).concat([10]));
   weeks.forEach(function(wk){
     var col = document.createElement("div"); col.className="bar-col";
-    col.innerHTML = "<b>"+wk.min+"分</b><div class='bar' style='height:"+Math.max(4, wk.min/max*70)+"px'></div><span>"+wk.label+"週</span>";
+    col.innerHTML = "<b>"+wk.min+"分</b><div class='bar' style='height:"+Math.max(4, wk.min/max*70)+"px'></div><span>"+wk.label+"</span>";
     bars.appendChild(col);
   });
   var counts = {};
